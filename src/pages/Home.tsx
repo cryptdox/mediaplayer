@@ -80,7 +80,9 @@ export const HomePage = () => {
   return (
     <div className="space-y-8 pb-4">
       <div className="px-4 md:px-6 pt-6 pb-2 bg-gradient-to-b from-violet-700/40 to-transparent space-y-4">
-        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">{greeting()}</h1>
+        <h1 className="flex items-center gap-3 text-2xl md:text-3xl font-extrabold tracking-tight">
+          <img src="/favicon.svg" alt="mumu" className="md:hidden w-8 h-8" />{greeting()}
+        </h1>
         {newest === null ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-14" />)}</div>
         ) : quick.length > 0 ? (
@@ -92,7 +94,7 @@ export const HomePage = () => {
 
       <div className="space-y-8 md:px-6">
         {recent.length > 0 && <Shelf title="Recently played" to="/library/recent">{recent.map(s => <SongCard key={s.id} song={s} list={recent} />)}</Shelf>}
-        {newest && newest.length > 0 && <Shelf title="New releases" to="/search">{newest.map(s => <SongCard key={s.id} song={s} list={newest} />)}</Shelf>}
+        {newest && newest.length > 0 && <Shelf title="New releases">{newest.map(s => <SongCard key={s.id} song={s} list={newest} />)}</Shelf>}
         {popular.length > 0 && <Shelf title="Most played">{popular.map(s => <SongCard key={s.id} song={s} list={popular} />)}</Shelf>}
         {albums.length > 0 && <Shelf title="Albums">{albums.map(c => <CollectionCard key={c.id} c={c} onPlay={() => void playCollection(c)} />)}</Shelf>}
         {mixes.length > 0 && <Shelf title="Mixes for you">{mixes.map(c => <CollectionCard key={c.id} c={c} onPlay={() => void playCollection(c)} />)}</Shelf>}

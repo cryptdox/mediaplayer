@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Heart, History, LayoutGrid, List, Search as SearchIcon, Shuffle, X } from 'lucide-react';
 import clsx from 'clsx';
-import { canPlay, fetchCollection, fetchCollections, fetchGenres, fetchSongs, fetchSongsByIds, formatDuration, type Collection, type CollectionOrder, type Genre, type Song } from '../lib/music';
+import { TOP, canPlay, fetchCollection, fetchCollections, fetchGenres, fetchSongs, fetchSongsByIds, formatDuration, type Collection, type CollectionOrder, type Genre, type Song } from '../lib/music';
 import { useLiked, useRecent } from '../lib/library';
 import { usePlayer } from '../lib/player';
 import { CollectionCard, Cover, PlayButton, Skeleton, SongRow } from '../components/ui';
@@ -66,35 +66,21 @@ export const CollectionPage = () => {
   );
 };
 
-const PAGE = 40;
-
+/** A genre's top songs (most played), like a Spotify genre page: never the whole catalogue. */
 export const GenrePage = () => {
   const { id = '' } = useParams();
   const [genre, setGenre] = useState<Genre | null>(null);
   const [songs, setSongs] = useState<Song[] | null>(null);
-  const [count, setCount] = useState(0);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     setSongs(null);
     void fetchGenres().then(gs => setGenre(gs.find(g => g.id === id) ?? null)).catch(() => {});
-    void fetchSongs({ genreId: id, order: 'popular' }, 0, PAGE).then(r => { setSongs(r.rows); setCount(r.total); }).catch(() => setSongs([]));
+    void fetchSongs({ genreId: id, order: 'popular' }).then(r => setSongs(r.rows)).catch(() => setSongs([]));
   }, [id]);
-  const more = async () => {
-    if (!songs) return;
-    setBusy(true);
-    const r = await fetchSongs({ genreId: id, order: 'popular' }, songs.length, PAGE).catch(() => null);
-    if (r) setSongs([...songs, ...r.rows]);
-    setBusy(false);
-  };
   const color = genre?.color ?? '#7c3aed';
   return (
     <TrackList
       art={<div className="w-48 h-48 md:w-56 md:h-56 rounded-md flex items-end p-4 text-3xl font-extrabold" style={{ background: `linear-gradient(135deg, ${color}, #14141b)` }}>{genre?.name}</div>}
-      kind="Genre" title={genre?.name ?? ''} meta={`${count} songs`} color={color} songs={songs} empty="No songs in this genre yet."
-      footer={songs && songs.length < count && (
-        <button onClick={() => void more()} disabled={busy} className="mx-auto my-4 block px-5 py-2 rounded-full border border-line text-sm font-semibold hover:border-ink disabled:opacity-50">{busy ? 'Loading…' : 'Show more'}</button>
-      )}
-    />
+      kind="Genre" title={genre?.name ?? ''} meta={songs ? `Top ${songs.length} ${songs.length === 1 ? 'song' : 'songs'} · most played` : ''} color={color} songs={songs} empty="No songs in this genre yet." />
   );
 };
 
@@ -160,7 +146,7 @@ export const LibraryPage = () => {
   useEffect(() => {
     let live = true;
     setLists(null);
-    void fetchCollections(filter === 'all' ? undefined : filter, search, 100, order)
+    void fetchCollections(filter === 'all' ? undefined : filter, search, TOP, order)
       .then(r => { if (live) setLists(r); }).catch(() => { if (live) setLists([]); });
     return () => { live = false; };
   }, [filter, search, order]);
@@ -171,7 +157,9 @@ export const LibraryPage = () => {
   const kindLabel = filter === 'album' ? 'albums' : filter === 'mix' ? 'mixes' : 'albums or mixes';
   return (
     <div className="px-4 md:px-6 pt-6 pb-4 space-y-5">
-      <h1 className="text-2xl md:text-3xl font-extrabold">Your Library</h1>
+      <h1 className="flex items-center gap-3 text-2xl md:text-3xl font-extrabold">
+        <img src="/favicon.svg" alt="mumu" className="md:hidden w-8 h-8" />Your Library
+      </h1>
       {!search && (
         <div className="grid gap-3 sm:grid-cols-2">
           <Link to="/library/liked" className="flex items-center gap-4 p-3 rounded-lg bg-gradient-to-br from-violet-700 to-emerald-600 hover:brightness-110">
@@ -213,12 +201,17 @@ export const LibraryPage = () => {
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="aspect-square" />)}</div>
       ) : lists.length === 0 ? (
         <p className="text-dim py-6">{search ? `No ${kindLabel} match "${search}".` : `No ${kindLabel} yet.`}</p>
-      ) : view === 'list' ? (
+      ) : (
+        <>
+        {view === 'list' ? (
         <div className="-mx-2">{lists.map(c => <CollectionRowItem key={c.id} c={c} />)}</div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 -mx-2">
           {lists.map(c => <div key={c.id} className="[&>a]:w-full"><CollectionCard c={c} onPlay={() => void fetchCollection(c.id).then(r => playList(r.songs, 0, { finite: true }))} /></div>)}
         </div>
+        )}
+        {lists.length >= TOP && <p className="text-sm text-dim text-center pt-2">Showing the top {TOP}. Search to find others.</p>}
+        </>
       )}
     </div>
   );

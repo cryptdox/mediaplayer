@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { canPlay, countPlay, fetchSongs, fetchSongsByIds, type Song } from './music';
 import { pushRecent } from './library';
 import { toast } from './toast';
+import { bindNowPlayingControls, setNowPlayingState, setNowPlayingTrack, updateWidget, type NowPlayingHandlers } from './nowPlaying';
 
 // One <audio> for the whole app: the queue, every control, the lock-screen /
 // notification controls (Media Session), and the queue saved for next launch.
@@ -30,6 +31,7 @@ type Player = {
 const Ctx = createContext<Player | null>(null);
 
 const SAVED = 'mp-player';
+const SAVED_MAX = 100;
 const num = (k: string, d: number) => { try { const v = localStorage.getItem(k); return v === null ? d : Number(v) || d; } catch { return d; } };
 const save = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* best effort */ } };
 
@@ -107,7 +109,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Save the queue as it changes (position every few seconds via time).
   useEffect(() => {
     if (!queue.length) return;
-    save(SAVED, JSON.stringify({ ids: queue.map(s => s.id), index, time: Math.floor(time), finite }));
+    // Keep at most SAVED_MAX songs around the current one (autoplay can keep growing the queue).
+    const from = Math.max(0, Math.min(index - SAVED_MAX / 2, queue.length - SAVED_MAX));
+    const ids = queue.slice(from, from + SAVED_MAX).map(s => s.id);
+    save(SAVED, JSON.stringify({ ids, index: index - from, time: Math.floor(time), finite }));
   }, [queue, index, finite, Math.floor(time / 5)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureAnalyser = useCallback(() => {
@@ -264,35 +269,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [current, repeat, advance, queue.length]);
 
-  // Lock screen / notification / headset controls.
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-    const ms = navigator.mediaSession;
-    if (!current) { ms.metadata = null; return; }
-    ms.metadata = new MediaMetadata({
-      title: current.title,
-      artist: current.artist ?? '',
-      album: current.genre?.name ?? '',
-      artwork: current.cover?.url
-        ? [{ src: current.cover.url, sizes: '512x512' }]
-        : [{ src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
-    });
-    const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ['play', () => play()], ['pause', () => pause()],
-      ['previoustrack', () => prev()], ['nexttrack', () => next()],
-      ['seekbackward', d => skip(-(d.seekOffset ?? 10))], ['seekforward', d => skip(d.seekOffset ?? 10)],
-      ['seekto', d => { if (d.seekTime !== undefined) seek(d.seekTime); }],
-    ];
-    for (const [action, fn] of handlers) { try { ms.setActionHandler(action, fn); } catch { /* unsupported action */ } }
-  }, [current, play, pause, prev, next, skip, seek]);
+  // Lock screen / notification / headset buttons / Android widget (see nowPlaying.ts).
+  const controls = useRef<NowPlayingHandlers>({ play, pause, toggle, prev, next, skip, seek });
+  controls.current = { play, pause, toggle, prev, next, skip, seek };
+  useEffect(() => bindNowPlayingControls(() => controls.current), []);
 
   useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.playbackState = playing ? 'playing' : current ? 'paused' : 'none';
-    if (current && duration && navigator.mediaSession.setPositionState) {
-      try { navigator.mediaSession.setPositionState({ duration, playbackRate: rate, position: Math.min(time, duration) }); } catch { /* ignore */ }
-    }
-  }, [playing, current, duration, rate, Math.floor(time)]); // eslint-disable-line react-hooks/exhaustive-deps
+    const track = current ? { title: current.title, artist: current.artist ?? '', album: current.genre?.name ?? '', cover: current.cover?.url ?? null } : null;
+    setNowPlayingTrack(track);
+  }, [current]);
+
+  useEffect(() => {
+    updateWidget(current ? { title: current.title, artist: current.artist || 'Unknown artist', cover: current.cover?.url ?? null } : null, playing);
+  }, [current, playing]);
+
+  // Position: on play / pause / track change, then every few seconds (the OS interpolates in between).
+  useEffect(() => {
+    setNowPlayingState(playing ? 'playing' : current ? 'paused' : 'none', current ? { duration, position: time, rate } : undefined);
+  }, [playing, current, duration, rate, Math.floor(time / 5)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const start = (songs: Song[], at: number) => {
     userStarted.current = true;

@@ -18,5 +18,7 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ system splash: the app's dark background, not the default light one. -->
+        <item name="windowSplashScreenBackground">#0B0B0F</item>
     </style>
 </resources>

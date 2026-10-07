@@ -6,7 +6,7 @@ import { Home, Search, Library, Heart, History } from 'lucide-react';
 import clsx from 'clsx';
 import { fetchCollections, type Collection } from '../lib/music';
 import { useLiked } from '../lib/library';
-import { Cover } from './ui';
+import { Brand, Cover } from './ui';
 import { FullPlayer, MiniPlayer, PlayerBar, useFullPlayer } from './PlayerUi';
 import { Toaster } from './Toaster';
 
@@ -17,14 +17,11 @@ const navItem = ({ isActive }: { isActive: boolean }) =>
 const Sidebar = () => {
   const liked = useLiked();
   const [lists, setLists] = useState<Collection[]>([]);
-  useEffect(() => { void fetchCollections(undefined, undefined, 50).then(setLists).catch(() => {}); }, []);
+  useEffect(() => { void fetchCollections().then(setLists).catch(() => {}); }, []);
   return (
     <aside className="hidden md:flex flex-col gap-2 w-72 shrink-0 p-2">
       <div className="rounded-lg bg-surface p-3 space-y-1">
-        <Link to="/" className="flex items-center gap-2 px-3 pb-3 pt-1">
-          <img src="/favicon.svg" alt="" className="w-8 h-8" />
-          <span className="font-extrabold tracking-tight text-lg">Media Player</span>
-        </Link>
+        <Link to="/" className="block px-3 pb-3 pt-1" aria-label="mumu home"><Brand /></Link>
         <NavLink to="/" end className={navItem}><Home size={22} />Home</NavLink>
         <NavLink to="/search" className={navItem}><Search size={22} />Search</NavLink>
       </div>

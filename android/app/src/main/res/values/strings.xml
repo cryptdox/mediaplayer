@@ -1,7 +1,13 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Media Player</string>
-    <string name="title_activity_main">Media Player</string>
-    <string name="package_name">com.cryptdox.mediaplayer</string>
-    <string name="custom_url_scheme">com.cryptdox.mediaplayer</string>
+    <string name="app_name">mumu</string>
+    <string name="title_activity_main">mumu</string>
+    <string name="package_name">com.cryptdox.mumu</string>
+    <string name="custom_url_scheme">com.cryptdox.mumu</string>
+    <string name="widget_description">Now playing, with play / pause, previous and next.</string>
+    <string name="widget_idle">Tap to start listening</string>
+    <string name="widget_open">Open mumu</string>
+    <string name="widget_prev">Previous</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_next">Next</string>
 </resources>

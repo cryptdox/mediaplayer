@@ -73,9 +73,16 @@ export const formatDuration = (seconds: number | null | undefined) => {
 
 const asSongs = (data: unknown) => ((data ?? []) as SongRow[]).map(toSong);
 
+/** Like Spotify, lists show the top songs / albums only, never "everything". */
+export const TOP = 20;
+
+/** Stands for "not set" in genre / mood filters (songs whose info is still incomplete). */
+export const UNKNOWN = 'unknown';
+const UNKNOWN_GENRE: Genre = { id: UNKNOWN, name: 'Unknown', particle: 'stars', color: '#71717a' };
+
 export type SongQuery = { search?: string; genreId?: string; mood?: string; order?: 'new' | 'popular' };
 
-export async function fetchSongs(q: SongQuery, from = 0, size = 30): Promise<{ rows: Song[]; total: number }> {
+export async function fetchSongs(q: SongQuery, from = 0, size = TOP): Promise<{ rows: Song[]; total: number }> {
   let query = supabase.from('mp_songs').select(SONG_SELECT, { count: 'exact' });
   const s = q.search?.trim().replace(/[,()]/g, ' ');
   if (s) {
@@ -97,8 +104,10 @@ export async function fetchSongs(q: SongQuery, from = 0, size = 30): Promise<{ r
     if (ids(languages).length) ors.push(`language_id.in.(${ids(languages).join(',')})`);
     query = query.or(ors.join(','));
   }
-  if (q.genreId) query = query.eq('genre_id', q.genreId);
-  if (q.mood) query = query.eq('mood', q.mood);
+  if (q.genreId === UNKNOWN) query = query.is('genre_id', null);
+  else if (q.genreId) query = query.eq('genre_id', q.genreId);
+  if (q.mood === UNKNOWN) query = query.is('mood', null);
+  else if (q.mood) query = query.eq('mood', q.mood);
   query = q.order === 'popular'
     ? query.order('play_count', { ascending: false }).order('created_at', { ascending: false })
     : query.order('created_at', { ascending: false });
@@ -119,7 +128,7 @@ export async function fetchSongsByIds(ids: string[]): Promise<Song[]> {
 export type CollectionOrder = 'recent' | 'title' | 'year';
 
 /** Albums / mixes; search matches the title, a singer or the source (band, movie…). */
-export async function fetchCollections(kind?: 'album' | 'mix', search?: string, limit = 30, order: CollectionOrder = 'recent'): Promise<Collection[]> {
+export async function fetchCollections(kind?: 'album' | 'mix', search?: string, limit = TOP, order: CollectionOrder = 'recent'): Promise<Collection[]> {
   let q = supabase.from('mp_collections').select(COLLECTION_SELECT).limit(limit);
   q = order === 'title' ? q.order('title')
     : order === 'year' ? q.order('release_year', { ascending: false, nullsFirst: false }).order('title')
@@ -147,6 +156,15 @@ export async function fetchCollections(kind?: 'album' | 'mix', search?: string, 
   return ((data ?? []) as unknown as CollectionRow[]).map(toCollection);
 }
 
+/** Albums / mixes by id, in the order given (recent searches). */
+export async function fetchCollectionsByIds(ids: string[]): Promise<Collection[]> {
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from('mp_collections').select(COLLECTION_SELECT).in('id', ids);
+  if (error) throw error;
+  const byId = new Map(((data ?? []) as unknown as CollectionRow[]).map(toCollection).map(c => [c.id, c]));
+  return ids.map(id => byId.get(id)).filter((c): c is Collection => !!c);
+}
+
 export async function fetchCollection(id: string): Promise<{ collection: Collection | null; songs: Song[] }> {
   const [c, l] = await Promise.all([
     supabase.from('mp_collections').select(COLLECTION_SELECT).eq('id', id).maybeSingle(),
@@ -158,11 +176,24 @@ export async function fetchCollection(id: string): Promise<{ collection: Collect
   return { collection: c.data ? toCollection(c.data as unknown as CollectionRow) : null, songs };
 }
 
+/** Is there any song without this field? (head-only count, no rows fetched) */
+const anyMissing = async (column: 'genre_id' | 'mood') => {
+  const { count } = await supabase.from('mp_songs').select('id', { count: 'exact', head: true }).is(column, null);
+  return (count ?? 0) > 0;
+};
+
+/** Genres A–Z, plus "Unknown" at the end while some songs have no genre yet. */
 export async function fetchGenres(): Promise<Genre[]> {
-  const { data, error } = await supabase.from('mp_genres').select('id, name, particle, color').order('name');
+  const [{ data, error }, missing] = await Promise.all([
+    supabase.from('mp_genres').select('id, name, particle, color').order('name'),
+    anyMissing('genre_id').catch(() => false),
+  ]);
   if (error) throw error;
-  return (data ?? []) as Genre[];
+  return [...((data ?? []) as Genre[]), ...(missing ? [UNKNOWN_GENRE] : [])];
 }
+
+/** Show an "Unknown" mood chip only while some songs have no mood. */
+export const hasUnknownMood = () => anyMissing('mood').catch(() => false);
 
 export async function countPlay(songId: string) {
   await supabase.rpc('mp_count_play', { p_song_id: songId });

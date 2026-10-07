@@ -76,11 +76,11 @@ const SongMenu = ({ song }: { song: Song }) => {
 };
 
 /** One track: tap to play (within `list`), like, ⋯ menu. Premium tracks show a lock. */
-export const SongRow = ({ song, list, n, showCover = true, finite = false }: { song: Song; list: Song[]; n?: number; showCover?: boolean; finite?: boolean }) => {
+export const SongRow = ({ song, list, n, showCover = true, finite = false, onPick }: { song: Song; list: Song[]; n?: number; showCover?: boolean; finite?: boolean; onPick?: () => void }) => {
   const { current, playing, playList, toggle } = usePlayer();
   const isCurrent = current?.id === song.id;
   const locked = !canPlay(song);
-  const play = () => { if (locked) return; if (isCurrent) toggle(); else playList(list, list.indexOf(song), { finite }); };
+  const play = () => { if (locked) return; onPick?.(); if (isCurrent) toggle(); else playList(list, list.indexOf(song), { finite }); };
   return (
     <div role="button" tabIndex={0} onClick={play} onKeyDown={e => { if (e.key === 'Enter') play(); }}
       className={clsx('group flex items-center gap-3 px-2 py-2 rounded-md select-none', locked ? 'opacity-60' : 'cursor-pointer hover:bg-hover/70 active:bg-hover')}>
@@ -150,3 +150,11 @@ export const GenreCard = ({ g, wide = false }: { g: Genre; wide?: boolean }) => 
 );
 
 export const Skeleton = ({ className = '' }: { className?: string }) => <div className={clsx('animate-pulse bg-elevated rounded-md', className)} />;
+
+/** The mumu logo + wordmark. */
+export const Brand = ({ size = 32, className = '' }: { size?: number; className?: string }) => (
+  <span className={clsx('inline-flex items-center gap-2', className)}>
+    <img src="/favicon.svg" alt="" width={size} height={size} />
+    <span className="font-semibold tracking-tight leading-none" style={{ fontFamily: 'Fredoka, var(--font-sans)', fontSize: size * 0.8 }}>mumu</span>
+  </span>
+);

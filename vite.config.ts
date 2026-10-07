@@ -15,9 +15,9 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Media Player',
-        short_name: 'Media Player',
-        description: 'Stream music: albums, mixes and genres.',
+        name: 'mumu',
+        short_name: 'mumu',
+        description: 'mumu: stream music, albums, mixes and genres.',
         theme_color: '#0b0b0f',
         background_color: '#0b0b0f',
         display: 'standalone',
