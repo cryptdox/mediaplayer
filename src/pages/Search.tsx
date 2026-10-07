@@ -85,7 +85,7 @@ export const SearchPage = () => {
         <>
           {lists.length > 0 && (
             <div className="-mx-4 md:mx-0">
-              <Shelf title="Albums & mixes">{lists.map(c => <CollectionCard key={c.id} c={c} onPlay={() => void fetchCollection(c.id).then(r => playList(r.songs))} />)}</Shelf>
+              <Shelf title="Albums & mixes">{lists.map(c => <CollectionCard key={c.id} c={c} onPlay={() => void fetchCollection(c.id).then(r => playList(r.songs, 0, { finite: true }))} />)}</Shelf>
             </div>
           )}
           <section className="space-y-2">
@@ -96,7 +96,7 @@ export const SearchPage = () => {
               <p className="text-dim py-6">No songs found. Try another word or mood.</p>
             ) : (
               <>
-                <div>{songs.map(s => <SongRow key={s.id} song={s} list={songs} />)}</div>
+                <div>{songs.map(s => <SongRow key={s.id} song={s} list={songs} finite={!!mood && !q} />)}</div>
                 {songs.length < total && (
                   <button onClick={() => void more()} disabled={loadingMore} className="mx-auto block px-5 py-2 rounded-full border border-line text-sm font-semibold hover:border-ink disabled:opacity-50">
                     {loadingMore ? 'Loading…' : 'Show more'}

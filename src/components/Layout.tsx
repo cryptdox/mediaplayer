@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { Home, Search, Library, Heart, History } from 'lucide-react';
 import clsx from 'clsx';
 import { fetchCollections, type Collection } from '../lib/music';
 import { useLiked } from '../lib/library';
 import { Cover } from './ui';
-import { FullPlayer, MiniPlayer, PlayerBar } from './PlayerUi';
+import { FullPlayer, MiniPlayer, PlayerBar, useFullPlayer } from './PlayerUi';
 import { Toaster } from './Toaster';
 
 const navItem = ({ isActive }: { isActive: boolean }) =>
@@ -65,6 +67,18 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const { pathname } = useLocation();
   // Each page starts at the top.
   useEffect(() => { document.getElementById('main')?.scrollTo({ top: 0 }); }, [pathname]);
+  // Android Back: close the full player, then go back, and at the root just
+  // background the app so the music keeps playing.
+  const fp = useFullPlayer();
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = App.addListener('backButton', ({ canGoBack }) => {
+      if (fp.open) fp.hide();
+      else if (canGoBack && (window.history.state?.idx ?? 0) > 0) window.history.back();
+      else void App.minimizeApp();
+    });
+    return () => { void sub.then(h => h.remove()); };
+  }, [fp]);
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 min-h-0 flex md:gap-0">

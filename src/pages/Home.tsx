@@ -74,7 +74,7 @@ export const HomePage = () => {
   }, []);
   useEffect(() => { void fetchSongsByIds(recentIds.slice(0, 20)).then(setRecent).catch(() => {}); }, [recentIds]);
 
-  const playCollection = async (c: Collection) => { const { songs } = await fetchCollection(c.id); playList(songs); };
+  const playCollection = async (c: Collection) => { const { songs } = await fetchCollection(c.id); playList(songs, 0, { finite: true }); };
   const quick = (recent.length ? recent : newest ?? []).slice(0, 6);
 
   return (
@@ -98,7 +98,7 @@ export const HomePage = () => {
         {mixes.length > 0 && <Shelf title="Mixes for you">{mixes.map(c => <CollectionCard key={c.id} c={c} onPlay={() => void playCollection(c)} />)}</Shelf>}
         {genres.length > 0 && (
           <Shelf title="Genres" to="/search">
-            {genres.map(g => <div key={g.id} className="snap-start shrink-0 w-40"><GenreCard g={g} /></div>)}
+            {genres.map(g => <div key={g.id} className="snap-start shrink-0 w-36 md:w-44 p-2 md:p-3"><GenreCard g={g} /></div>)}
           </Shelf>
         )}
       </div>

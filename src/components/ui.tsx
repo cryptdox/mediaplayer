@@ -76,11 +76,11 @@ const SongMenu = ({ song }: { song: Song }) => {
 };
 
 /** One track: tap to play (within `list`), like, ⋯ menu. Premium tracks show a lock. */
-export const SongRow = ({ song, list, n, showCover = true }: { song: Song; list: Song[]; n?: number; showCover?: boolean }) => {
+export const SongRow = ({ song, list, n, showCover = true, finite = false }: { song: Song; list: Song[]; n?: number; showCover?: boolean; finite?: boolean }) => {
   const { current, playing, playList, toggle } = usePlayer();
   const isCurrent = current?.id === song.id;
   const locked = !canPlay(song);
-  const play = () => { if (locked) return; if (isCurrent) toggle(); else playList(list, list.indexOf(song)); };
+  const play = () => { if (locked) return; if (isCurrent) toggle(); else playList(list, list.indexOf(song), { finite }); };
   return (
     <div role="button" tabIndex={0} onClick={play} onKeyDown={e => { if (e.key === 'Enter') play(); }}
       className={clsx('group flex items-center gap-3 px-2 py-2 rounded-md select-none', locked ? 'opacity-60' : 'cursor-pointer hover:bg-hover/70 active:bg-hover')}>
@@ -140,8 +140,9 @@ export const CollectionCard = ({ c, onPlay }: { c: Collection; onPlay?: () => vo
 );
 
 /** Genre tile: coloured block with the name (Search › Browse all). */
+/** wide: Search's browse grid. Otherwise a square tile for shelves. */
 export const GenreCard = ({ g, wide = false }: { g: Genre; wide?: boolean }) => (
-  <Link to={`/genre/${g.id}`} className={clsx('relative overflow-hidden rounded-lg p-3 font-bold text-lg text-white shadow-md hover:scale-[1.02] transition', wide ? 'h-28' : 'h-24')}
+  <Link to={`/genre/${g.id}`} className={clsx('relative block overflow-hidden rounded-lg p-3 font-bold text-lg text-white shadow-md hover:scale-[1.02] transition', wide ? 'h-28' : 'aspect-square')}
     style={{ background: `linear-gradient(135deg, ${g.color}, ${g.color}99 60%, #14141b)` }}>
     {g.name}
     <Music2 className="absolute -right-3 -bottom-3 w-16 h-16 rotate-[25deg] text-white/25" />
