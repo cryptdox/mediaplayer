@@ -48,10 +48,29 @@ Recommended phone order: 01 player → 02 home → 03 search → 04 lyrics → 0
   > • Sing along: lyrics, the queue and song details are one tap away
   > • You decide: shuffle, repeat one or all, playback speed, skip ±10 s
   > • Your library: liked songs and recently played, saved on your device
-  > • Keeps playing in the background, with lock-screen controls
+  > • Keeps playing in the background, with lock-screen and notification controls
+  > • Home-screen widget: see what's playing, play / pause and skip without opening the app
   >
   > No account needed. Just open mumu and press play.
 
 - **Category:** Music & Audio · **Tags:** Music player, Streaming, Lyrics
 
-Before you submit, check "Keeps playing in the background, with lock-screen controls" against the Android build. Lock-screen controls work in the web app (PWA), but not yet in the Android APK.
+## Android release
+
+- Package: `com.cryptdox.mumu` (permanent once uploaded) · version 1.0 (versionCode 1) · min Android 7.0 (API 24) · target API 36.
+- Signed files: `release/mumu-1.0-release.aab` (upload this to Play) and `release/mumu-1.0-release.apk` (install directly on phones for testing).
+  Rebuild with `npm run build && npx cap sync android && cd android && ./gradlew assembleRelease bundleRelease`.
+- Upload key: `android/mumu-upload.jks` + its passwords in `android/keystore.properties` (both git-ignored). **Back both up somewhere safe.** If you lose them, you can't publish updates (unless Play App Signing resets the upload key). Enrol in Play App Signing on the first upload.
+  Upload certificate SHA-256: `D4:44:98:D4:41:3D:D9:CB:30:F5:35:67:33:EA:C1:20:EB:DB:89:6D:B0:5E:AC:38:04:09:77:62:41:C5:A4:3C`.
+- Play Console declarations this build needs:
+  - **Foreground service: media playback** (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`). Describe it as "plays music the user started, with the screen off or the app in the background". Play asks for a short video showing it.
+  - **Notifications:** the now-playing notification only (no marketing notifications).
+
+### Test on a phone before submitting
+
+The emulator on the build machine was too slow to run these, so check them on a real device with the APK:
+1. Play a song, press Home, then lock the screen. Music keeps playing.
+2. The notification and lock screen show the cover, title and play / pause / next / previous, and they work.
+3. Headphone / Bluetooth buttons play, pause and skip.
+4. Long-press the home screen → Widgets → mumu. The widget shows the song and its buttons work. With the app closed, a tap opens mumu.
+5. The splash is dark, the Back button closes the player, then goes back, then sends the app to the background.
