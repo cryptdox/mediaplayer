@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, RotateCcw, RotateCw, Volume2, VolumeX, ChevronDown, ListMusic, Gauge, X,
+  Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, RotateCcw, RotateCw, Volume2, VolumeX, ChevronDown, ListMusic, Gauge, X, Rewind, FastForward,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { usePlayer } from '../lib/player';
@@ -177,6 +177,40 @@ const Pulse = ({ color }: { color: string }) => {
   );
 };
 
+/** Press and hold the left half to rewind at 2×, the right half to play at 2×; let go for normal speed. */
+const HoldToSeek = ({ className, children }: { className?: string; children: ReactNode }) => {
+  const { hold } = usePlayer();
+  const [dir, setDir] = useState<-1 | 0 | 1>(0);
+  const timer = useRef(0);
+  const active = useRef(false);
+  const holdRef = useRef(hold);
+  useEffect(() => { holdRef.current = hold; }, [hold]);
+  const release = () => {
+    window.clearTimeout(timer.current);
+    if (active.current) { active.current = false; holdRef.current(0); setDir(0); }
+  };
+  useEffect(() => release, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className={clsx('relative select-none touch-none [-webkit-touch-callout:none]', className)}
+      onContextMenu={e => e.preventDefault()}
+      onPointerDown={e => {
+        if (e.button !== 0) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const d = e.clientX < r.left + r.width / 2 ? -1 : 1;
+        release();
+        timer.current = window.setTimeout(() => { active.current = true; holdRef.current(d); setDir(d); }, 350);
+      }}
+      onPointerUp={release} onPointerCancel={release} onPointerLeave={release}>
+      {children}
+      {dir !== 0 && (
+        <div className={clsx('absolute top-2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 text-sm font-semibold pointer-events-none', dir < 0 ? 'left-2' : 'right-2')} aria-live="polite">
+          {dir < 0 ? <><Rewind size={16} fill="currentColor" /> 2×</> : <>2× <FastForward size={16} fill="currentColor" /></>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 type Tab = 'queue' | 'lyrics' | 'about';
 
 /** Full-screen Now Playing. Phones: one screen, no scrolling; Queue / Lyrics / About open as a sheet. Desktop: the panel sits beside the player. */
@@ -217,7 +251,7 @@ export const FullPlayer = () => {
           an open Queue / Lyrics / About panel takes the artwork's place. */}
       <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto px-6 lg:px-12 flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-16 lg:items-center lg:pb-10">
         <div className="flex-1 min-h-0 w-full max-w-md mx-auto flex flex-col pb-4 lg:contents">
-          <div className={clsx('flex-1 min-h-0 flex items-center justify-center py-4', tab && 'lg:hidden')}>
+          <HoldToSeek className={clsx('flex-1 min-h-0 flex items-center justify-center py-4', tab && 'lg:hidden')}>
             <div className="relative mb-9 w-[min(80vw,40dvh,22rem)] md:w-[min(64vw,46dvh,28rem)] lg:w-[min(36vw,56dvh,30rem)]">
               <Pulse color={color} />
               <div className="relative aspect-square rounded-full p-[4%] shadow-2xl motion"
@@ -226,7 +260,7 @@ export const FullPlayer = () => {
                 <span className="absolute inset-0 m-auto w-[8%] h-[8%] rounded-full bg-bg border-2 border-white/30" />
               </div>
             </div>
-          </div>
+          </HoldToSeek>
 
           <div className="shrink-0 w-full space-y-4 lg:space-y-6 lg:col-start-2 lg:row-start-1">
             <div className="flex items-start gap-3">

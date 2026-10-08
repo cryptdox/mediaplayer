@@ -25,6 +25,8 @@ type Player = {
   seek: (s: number) => void; skip: (d: number) => void;
   setShuffle: (v: boolean) => void; cycleRepeat: () => void;
   setRate: (v: number) => void; setVolume: (v: number) => void; toggleMute: () => void;
+  /** Press-and-hold scrubbing: 1 plays at 2×, -1 rewinds at 2×, 0 goes back to normal. */
+  hold: (dir: -1 | 0 | 1) => void;
   level: () => number; bands: (n: number) => number[];
 };
 
@@ -70,8 +72,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [finite, setFinite] = useState(false);
-  const [shuffle, setShuffleState] = useState(false);
-  const [repeat, setRepeat] = useState<RepeatMode>('off');
+  // Shuffle and repeat-all are on until the user turns them off (remembered).
+  const [shuffle, setShuffleState] = useState(() => { try { return localStorage.getItem('mp-shuffle') !== '0'; } catch { return true; } });
+  const [repeat, setRepeat] = useState<RepeatMode>(() => {
+    try { const v = localStorage.getItem('mp-repeat'); return v === 'off' || v === 'one' ? v : 'all'; } catch { return 'all'; }
+  });
+  // A play / next / prev that arrived before there was a song (widget tap that launched the app).
+  const pending = useRef(false);
+  const holding = useRef<{ dir: -1 | 1; timer?: number } | null>(null);
   const [rate, setRate] = useState(() => num('mp-rate', 1));
   const [volume, setVolume] = useState(() => num('mp-volume', 1));
   const [muted, setMuted] = useState(false);
@@ -103,8 +111,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setIndex(at);
       setOrder(shuffled(playable.length, at));
       setFinite(!!saved!.finite);
+      // Launched by the widget's play button: start the restored queue right away.
+      if (pending.current) { pending.current = false; wake(); setPlaying(true); }
     }).catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save the queue as it changes (position every few seconds via time).
   useEffect(() => {
@@ -167,6 +177,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (audio.current) audio.current.playbackRate = rate; save('mp-rate', String(rate)); }, [rate]);
   useEffect(() => { if (audio.current) audio.current.volume = volume; save('mp-volume', String(volume)); }, [volume]);
   useEffect(() => { if (audio.current) audio.current.muted = muted; }, [muted]);
+  useEffect(() => { save('mp-shuffle', shuffle ? '1' : '0'); }, [shuffle]);
+  useEffect(() => { save('mp-repeat', repeat); }, [repeat]);
 
   /** Play queue item i; when it is already the loaded song, restart it. */
   const go = useCallback((i: number) => {
@@ -205,10 +217,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setTime(0);
   }, [queue, shuffle, order, index, repeat, current, finite, go, wake]);
 
-  const next = useCallback(() => { void advance(true); }, [advance]);
+  const next = useCallback(() => {
+    if (!queue.length) { pending.current = true; return; }
+    void advance(true);
+  }, [advance, queue.length]);
 
   const prev = useCallback(() => {
     const a = audio.current;
+    if (!queue.length) { pending.current = true; return; }
     if (a && a.currentTime > 3) { a.currentTime = 0; return; }
     const pos = (shuffle ? order.indexOf(index) : index) - 1;
     if (pos >= 0) go(shuffle ? order[pos] : pos);
@@ -216,18 +232,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (a) a.currentTime = 0;
   }, [shuffle, order, index, repeat, queue.length, go]);
 
+  // Before the saved queue has loaded (e.g. the app was just launched by the
+  // widget), remember the request and start playing once it is there.
   const play = useCallback(() => {
     const a = audio.current;
-    if (!a || !current) return;
+    if (!a || !current) { pending.current = true; return; }
     wake();
     setPlaying(true);
     void a.play().catch(() => setPlaying(false));
   }, [current, wake]);
-  const pause = useCallback(() => { audio.current?.pause(); }, []);
+  const pause = useCallback(() => { pending.current = false; audio.current?.pause(); }, []);
   const toggle = useCallback(() => { if (audio.current?.paused) play(); else pause(); }, [play, pause]);
 
   const seek = useCallback((s: number) => { if (audio.current) audio.current.currentTime = Math.max(0, Math.min(s, audio.current.duration || s)); }, []);
   const skip = useCallback((d: number) => seek((audio.current?.currentTime ?? 0) + d), [seek]);
+
+  // Hold forward: play at 2× (step ahead when paused). Hold back: step back 2× as fast as it plays.
+  const hold = useCallback((dir: -1 | 0 | 1) => {
+    const a = audio.current;
+    if (holding.current) { window.clearInterval(holding.current.timer); holding.current = null; }
+    if (a) a.playbackRate = rate;
+    if (!a || !dir || !current) return;
+    holding.current = { dir };
+    if (dir === 1 && !a.paused) { a.playbackRate = 2; return; }
+    const STEP = 0.1; // seconds per tick
+    holding.current.timer = window.setInterval(() => {
+      const delta = dir === 1 ? 2 * STEP : -(2 * STEP + (a.paused ? 0 : STEP * a.playbackRate));
+      a.currentTime = Math.max(0, Math.min(a.currentTime + delta, (a.duration || Infinity) - 0.25));
+      setTime(a.currentTime);
+    }, STEP * 1000);
+  }, [rate, current]);
+  useEffect(() => () => { if (holding.current) window.clearInterval(holding.current.timer); }, []);
 
   // Audio element events.
   useEffect(() => {
@@ -347,7 +382,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     toggle, next, prev, seek, skip,
     setShuffle: v => { setShuffleState(v); setOrder(shuffled(queue.length, index)); },
     cycleRepeat: () => setRepeat(r => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')),
-    setRate, setVolume, toggleMute: () => setMuted(m => !m),
+    setRate, setVolume, toggleMute: () => setMuted(m => !m), hold,
     level: () => {
       const node = analyser.current, buf = freq.current;
       if (!node || !buf) return 0;
@@ -364,7 +399,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return Array.from({ length: n }, (_, b) => { let s = 0; for (let i = b * size; i < (b + 1) * size; i++) s += buf[i]; return s / (size * 255); });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [queue, index, current, playing, time, duration, shuffle, repeat, rate, volume, muted, order, next, prev, toggle, seek, skip, go]);
+  }), [queue, index, current, playing, time, duration, shuffle, repeat, rate, volume, muted, order, next, prev, toggle, seek, skip, hold, go]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

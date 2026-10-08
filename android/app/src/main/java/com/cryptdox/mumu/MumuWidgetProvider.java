@@ -13,7 +13,7 @@ import android.widget.RemoteViews;
 /**
  * Home-screen player widget (like Spotify's): cover, title / artist and
  * previous · play-pause · next. The app pushes its state through MumuWidgetPlugin;
- * the buttons are sent back to the running player, or open the app when it isn't running.
+ * the buttons are sent back to the running player, or launch it (and start playing) when it isn't running.
  */
 public class MumuWidgetProvider extends AppWidgetProvider {
 
@@ -32,7 +32,8 @@ public class MumuWidgetProvider extends AppWidgetProvider {
         String action = intent.getAction();
         String js = ACTION_TOGGLE.equals(action) ? "toggle" : ACTION_PREV.equals(action) ? "prev" : ACTION_NEXT.equals(action) ? "next" : null;
         if (js != null) {
-            if (!MumuWidgetPlugin.dispatch(js)) openApp(context);
+            // Not running: start the app and have it play (it steps back to the home screen once playing).
+            if (!MumuWidgetPlugin.dispatch(js)) openApp(context, js);
             return;
         }
         super.onReceive(context, intent);
@@ -66,7 +67,9 @@ public class MumuWidgetProvider extends AppWidgetProvider {
         return PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    private static void openApp(Context context) {
-        context.startActivity(new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+    private static void openApp(Context context, String action) {
+        context.startActivity(new Intent(context, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(MainActivity.EXTRA_WIDGET_ACTION, action));
     }
 }
