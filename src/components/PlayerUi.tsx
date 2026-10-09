@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, RotateCcw, RotateCw, Volume2, VolumeX, ChevronDown, ListMusic, Gauge, X, Rewind, FastForward,
+  Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, RotateCcw, RotateCw, Volume2, VolumeX, ChevronDown, ListMusic, Gauge, X, Rewind, FastForward, Square,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { usePlayer } from '../lib/player';
@@ -44,6 +44,7 @@ export const Transport = ({ big = false }: { big?: boolean }) => {
       <button className={ib(p.repeat !== 'off')} onClick={p.cycleRepeat} aria-label={`Repeat: ${p.repeat}`}>
         {p.repeat === 'one' ? <Repeat1 size={s - 2} /> : <Repeat size={s - 2} />}
       </button>
+      <button className={ib()} onClick={p.stop} disabled={!p.current} aria-label="Stop" title="Stop"><Square size={s - 5} fill="currentColor" /></button>
     </div>
   );
 };
@@ -138,6 +139,9 @@ export const MiniPlayer = () => {
         <LikeButton songId={s.id} size={20} />
         <button onClick={e => { e.stopPropagation(); p.toggle(); }} className="p-2" aria-label={p.playing ? 'Pause' : 'Play'}>
           {p.playing ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
+        </button>
+        <button onClick={e => { e.stopPropagation(); p.stop(); }} className="p-2 text-dim hover:text-ink" aria-label="Stop" title="Stop">
+          <Square size={16} fill="currentColor" />
         </button>
       </div>
       <div className="h-[2px] bg-white/15"><div className="h-full bg-white" style={{ width: `${pct}%` }} /></div>

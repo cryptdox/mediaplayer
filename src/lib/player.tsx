@@ -22,6 +22,8 @@ type Player = {
   removeFromQueue: (i: number) => void;
   jumpTo: (i: number) => void;
   toggle: () => void; next: () => void; prev: () => void;
+  /** Stop playback and close the player; the saved queue is forgotten too. */
+  stop: () => void;
   seek: (s: number) => void; skip: (d: number) => void;
   setShuffle: (v: boolean) => void; cycleRepeat: () => void;
   setRate: (v: number) => void; setVolume: (v: number) => void; toggleMute: () => void;
@@ -116,14 +118,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save the queue as it changes (position every few seconds via time).
-  useEffect(() => {
-    if (!queue.length) return;
+  // Save the queue as it changes (position every few seconds via time, and
+  // exactly on pause / when the page is closed or reloaded).
+  const timeRef = useRef(time);
+  timeRef.current = time;
+  const saveNow = useCallback(() => {
+    if (!queue.length || index < 0) return;
     // Keep at most SAVED_MAX songs around the current one (autoplay can keep growing the queue).
     const from = Math.max(0, Math.min(index - SAVED_MAX / 2, queue.length - SAVED_MAX));
     const ids = queue.slice(from, from + SAVED_MAX).map(s => s.id);
-    save(SAVED, JSON.stringify({ ids, index: index - from, time: Math.floor(time), finite }));
-  }, [queue, index, finite, Math.floor(time / 5)]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Just after a reload the element may still read 0 while the restored position is pending.
+    const at = (audio.current?.getAttribute('src') ? audio.current.currentTime : 0) || timeRef.current;
+    save(SAVED, JSON.stringify({ ids, index: index - from, time: Math.floor(at), finite }));
+  }, [queue, index, finite]);
+  useEffect(() => { saveNow(); }, [saveNow, Math.floor(time / 5)]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const a = audio.current;
+    window.addEventListener('pagehide', saveNow);
+    a?.addEventListener('pause', saveNow);
+    return () => { window.removeEventListener('pagehide', saveNow); a?.removeEventListener('pause', saveNow); };
+  }, [saveNow]);
 
   const ensureAnalyser = useCallback(() => {
     if (analyser.current || !audio.current) return;
@@ -243,6 +257,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [current, wake]);
   const pause = useCallback(() => { pending.current = false; audio.current?.pause(); }, []);
   const toggle = useCallback(() => { if (audio.current?.paused) play(); else pause(); }, [play, pause]);
+  const stop = useCallback(() => {
+    pending.current = false;
+    resumeAt.current = null;
+    const a = audio.current;
+    if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
+    setPlaying(false);
+    setQueue([]); setIndex(-1); setOrder([]);
+    setTime(0); setDuration(0); setFinite(false);
+    try { localStorage.removeItem(SAVED); } catch { /* best effort */ }
+  }, []);
 
   const seek = useCallback((s: number) => { if (audio.current) audio.current.currentTime = Math.max(0, Math.min(s, audio.current.duration || s)); }, []);
   const skip = useCallback((d: number) => seek((audio.current?.currentTime ?? 0) + d), [seek]);
@@ -379,7 +403,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (i < index) setIndex(x => x - 1);
     },
     jumpTo: i => { if (queue[i]) go(i); },
-    toggle, next, prev, seek, skip,
+    toggle, next, prev, stop, seek, skip,
     setShuffle: v => { setShuffleState(v); setOrder(shuffled(queue.length, index)); },
     cycleRepeat: () => setRepeat(r => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')),
     setRate, setVolume, toggleMute: () => setMuted(m => !m), hold,
@@ -399,7 +423,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return Array.from({ length: n }, (_, b) => { let s = 0; for (let i = b * size; i < (b + 1) * size; i++) s += buf[i]; return s / (size * 255); });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [queue, index, current, playing, time, duration, shuffle, repeat, rate, volume, muted, order, next, prev, toggle, seek, skip, hold, go]);
+  }), [queue, index, current, playing, time, duration, shuffle, repeat, rate, volume, muted, order, next, prev, toggle, stop, seek, skip, hold, go]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
